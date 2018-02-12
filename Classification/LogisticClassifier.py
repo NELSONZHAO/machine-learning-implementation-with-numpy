@@ -1,11 +1,7 @@
 # coding: utf-8
 
 import numpy as np
-from sklearn import datasets
-from sklearn.preprocessing import minmax_scale
-from sklearn.model_selection import train_test_split
-from ModelEvaluation import BinaryClassificationEvaluation
-
+import h5py
 
 class LogisticClassifier(object):
 
@@ -35,12 +31,13 @@ class LogisticClassifier(object):
         self.learning_rate = learning_rate
         self.fit_intercept = fit_intercept
         self.class_weight = class_weight
-        self.random_sate = random_state
+        self.random_state = random_state
         self.verbose = verbose
         self.solver = solver
         self.multi_class = multi_class
         self.warm_start = warm_start
         self.init_mode = init_mode
+
         self.costs = []  # 记录训练过程中的损失
 
         # print(self.__init__)
@@ -125,7 +122,7 @@ class LogisticClassifier(object):
 
             # 打印日志
             if self.verbose and i % 100 == 0:
-                print("训练第 {} 轮, 训练误差为: {}".format(i+1, cost))
+                print("训练第 {} 轮, 训练误差为: {}".format(i, cost))
 
     def __predict(self, X):
         assert(X.ndim == 2)
@@ -147,34 +144,30 @@ class LogisticClassifier(object):
 
     @property
     def get_params(self):
-        return self.w, self.b
+        self.params = {
+            "penalty": self.penalty,
+            "tol": self.tol,
+            "max_iter": self.max_iter,
+            "reg_coef": self.reg_coef,
+            "learning_rate": self.learning_rate,
+            "fit_intercept": self.fit_intercept,
+            "class_weight": self.class_weight,
+            "random_state": self.random_state,
+            "verbose": self.verbose,
+            "solver": self.solver,
+            "multi_class": self.multi_class,
+            "warm_start": self.warm_start,
+            "init_mode": self.init_mode,
+            "w": self.w,
+            "b": self.b
+        }
+        return self.params
 
 
 if __name__ == "__main__":
     # test case
-    cancer = datasets.load_breast_cancer()
-    X = cancer.data
-    y = cancer.target
+    pass
 
-    # 归一化
-    X = minmax_scale(X)
-
-    # 分训练集和测试集
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=123)
-
-    clf = LogisticClassifier(init_mode='norm', max_iter=1000)
-
-    clf.fit(X_train, y_train)
-
-    preds_train = clf.predict(X_train)
-    preds_test = clf.predict(X_test)
-
-    hit_train = (preds_train == y_train).astype(np.int64).sum()
-    print("accuracy: {}".format(hit_train * 1.0 / preds_train.shape[0]))
-    hit_test = (preds_test == y_test).astype(np.int64).sum()
-    print("accuracy: {}".format(hit_test * 1.0 / preds_test.shape[0]))
-
-    print(clf.costs)
 
 
 
