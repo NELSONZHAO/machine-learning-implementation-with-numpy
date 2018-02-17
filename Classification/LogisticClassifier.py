@@ -98,8 +98,8 @@ class LogisticClassifier(object):
         y = np.array(y)
 
         # 判断
-        assert(X.ndim == 2)
-        assert(X.shape[0] == y.shape[0])
+        assert (X.ndim == 2)
+        assert (X.shape[0] == y.shape[0])
 
         # 初始化参数
         self.__initialize_weights(X.shape[1], self.init_mode)
