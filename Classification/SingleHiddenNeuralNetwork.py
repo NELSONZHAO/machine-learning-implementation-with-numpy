@@ -72,10 +72,10 @@ class SingleHiddenNeuralNetworkClassifier(object):
         # 随机状态
         np.random.seed(self.random_state)
 
-        self.W1 = np.random.randn(self.hidden_num, input_shape) * 0.01
+        self.W1 = np.random.randn(self.hidden_num, input_shape) * self.init_weights_coef
         self.b1 = np.zeros((self.hidden_num, 1))
 
-        self.W2 = np.random.randn(output_shape, self.hidden_num) * 0.01
+        self.W2 = np.random.randn(output_shape, self.hidden_num) * self.init_weights_coef
         self.b2 = np.zeros((output_shape, 1))
 
     def __propagate(self, X, y):
@@ -189,8 +189,8 @@ if __name__ == "__main__":
     X, y = load_planar()
 
     # Train
-    clf = SingleHiddenNeuralNetworkClassifier(max_iter=10000, activate_fn="tanh", hidden_num=4, learning_rate=0.5, random_state=123)
+    clf = SingleHiddenNeuralNetworkClassifier(max_iter=10000, activate_fn="relu", hidden_num=15, learning_rate=0.5, random_state=123)
     clf.fit(X, y)
 
     preds = clf.predict(X)
-    print("Accuracy: {}%".format(100.0 * (preds.reshape(1,-1) == y.reshape(1, -1)).sum() / y.shape[0]))
+    print("Accuracy: {}%".format(100.0 * (preds.reshape(1, -1) == y.reshape(1, -1)).sum() / y.shape[0]))
