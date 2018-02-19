@@ -167,7 +167,7 @@ class NeuralNetwork(object):
         dAL = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
 
         current_cache = caches[L-1]
-        grads["dA" + str(L)], grads["dW" + str(L)], grads["db" + str(L)] = self.__backward(dAL, current_cache, self.derivative_activate_fns[self.activate_fn])
+        grads["dA" + str(L)], grads["dW" + str(L)], grads["db" + str(L)] = self.__backward(dAL, current_cache, self.__derivative_sigmoid)
 
         for l in reversed(range(L-1)):
             current_cache = caches[l]
@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
 
     # Train
-    clf = NeuralNetwork(layer_dims=(8, 1), activate_fn="relu", max_iter=10000, learning_rate=0.5)
+    clf = NeuralNetwork(layer_dims=(32, 8, 1), activate_fn="lrelu", max_iter=20000, learning_rate=0.05, random_state=123)
     clf.fit(X, y)
 
     preds = clf.predict(X)

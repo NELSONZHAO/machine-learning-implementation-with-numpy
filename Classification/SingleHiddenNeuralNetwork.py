@@ -189,7 +189,7 @@ if __name__ == "__main__":
     X, y = load_planar()
 
     # Train
-    clf = SingleHiddenNeuralNetworkClassifier(max_iter=10000, activate_fn="relu", hidden_num=15, learning_rate=0.5, random_state=123)
+    clf = SingleHiddenNeuralNetworkClassifier(max_iter=20000, activate_fn="relu", hidden_num=32, learning_rate=0.05, random_state=123)
     clf.fit(X, y)
 
     preds = clf.predict(X)
