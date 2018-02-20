@@ -3,7 +3,7 @@
 import numpy as np
 from collections import defaultdict
 
-from DataSets.LoadData import load_planar
+# from DataSets.LoadData import load_planar
 
 
 class NeuralNetwork(object):
@@ -79,7 +79,8 @@ class NeuralNetwork(object):
         # Generate the weights of NN
         for l in range(1, L):
             self.weights["W" + str(l)] = np.random.randn(self.layer_dims[l], self.layer_dims[l-1]) * self.init_weights_coef
-            self.weights["b" + str(l)] = np.random.randn(self.layer_dims[l], 1) * self.init_weights_coef
+            # self.weights["b" + str(l)] = np.random.randn(self.layer_dims[l], 1) * self.init_weights_coef
+            self.weights["b" + str(l)] = np.zeros((self.layer_dims[l], 1))
 
             assert (self.weights["W" + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1]))
             assert (self.weights["b" + str(l)].shape == (self.layer_dims[l], 1))
@@ -188,7 +189,6 @@ class NeuralNetwork(object):
 
     def fit(self, X, y):
         assert (X.shape[0] == y.shape[0])
-        costs = []
 
         self.__initialize_weights(X.shape[1])
 
@@ -196,7 +196,7 @@ class NeuralNetwork(object):
         for i in range(self.max_iter):
             cost = self.__propagate(X, y)
 
-            costs.append(cost)
+            self.costs.append(cost)
 
             # print the log
             if self.verbose and i % 100 == 0:
@@ -217,20 +217,20 @@ class NeuralNetwork(object):
         # final output
         AL, _ = self.__forward(A, self.weights["W" + str(L)], self.weights["b" + str(L)], self.__sigmoid)
 
-        return AL.reshape(mx, 1)
+        return AL.reshape(mx, 1).squeeze()
 
     def predict(self, X):
         pred = (self.__predict(X) >= 0.5).astype(np.int64)
         return pred
 
-if __name__ == "__main__":
-    # Load the data
-    X, y = load_planar()
-
-
-    # Train
-    clf = NeuralNetwork(layer_dims=(32, 8, 1), activate_fn="lrelu", max_iter=20000, learning_rate=0.05, random_state=123)
-    clf.fit(X, y)
-
-    preds = clf.predict(X)
-    print("Accuracy: {}%".format(100.0 * (preds.reshape(1, -1) == y.reshape(1, -1)).sum() / y.shape[0]))
+# if __name__ == "__main__":
+#     # Load the data
+#     X, y = load_planar()
+#
+#
+#     # Train
+#     clf = NeuralNetwork(layer_dims=(32, 8, 1), activate_fn="lrelu", max_iter=20000, learning_rate=0.05, random_state=123)
+#     clf.fit(X, y)
+#
+#     preds = clf.predict(X)
+#     print("Accuracy: {}%".format(100.0 * (preds.reshape(1, -1) == y.reshape(1, -1)).sum() / y.shape[0]))
