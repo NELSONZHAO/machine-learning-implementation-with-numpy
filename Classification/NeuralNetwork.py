@@ -2,8 +2,9 @@
 
 import numpy as np
 from collections import defaultdict
+from Preprocessing.WeightsInitialization import *
 
-# from DataSets.LoadData import load_planar
+from DataSets.LoadData import *
 
 
 class NeuralNetwork(object):
@@ -37,6 +38,7 @@ class NeuralNetwork(object):
         self.init_weights_coef = init_weights_coef
         self.random_state = random_state
         self.verbose = verbose
+        self.weights = defaultdict()
 
         self.costs = []  # 记录训练过程的损失
 
@@ -190,7 +192,9 @@ class NeuralNetwork(object):
     def fit(self, X, y):
         assert (X.shape[0] == y.shape[0])
 
-        self.__initialize_weights(X.shape[1])
+        self.layer_dims = [X.shape[1]] + list(self.layer_dims)
+        self.weights = initialize_params_he(self.layer_dims)
+        # self.__initialize_weights(X.shape[1])
 
         # train the model
         for i in range(self.max_iter):
@@ -223,14 +227,14 @@ class NeuralNetwork(object):
         pred = (self.__predict(X) >= 0.5).astype(np.int64)
         return pred
 
-# if __name__ == "__main__":
-#     # Load the data
-#     X, y = load_planar()
-#
-#
-#     # Train
-#     clf = NeuralNetwork(layer_dims=(32, 8, 1), activate_fn="lrelu", max_iter=20000, learning_rate=0.05, random_state=123)
-#     clf.fit(X, y)
-#
-#     preds = clf.predict(X)
-#     print("Accuracy: {}%".format(100.0 * (preds.reshape(1, -1) == y.reshape(1, -1)).sum() / y.shape[0]))
+if __name__ == "__main__":
+    # Load the data
+    X, y = load_circles()
+
+
+    # Train
+    clf = NeuralNetwork(layer_dims=(4, 5, 1), activate_fn="relu", max_iter=20000, learning_rate=0.05, random_state=123)
+    clf.fit(X, y)
+
+    preds = clf.predict(X)
+    print("Accuracy: {}%".format(100.0 * (preds.reshape(1, -1) == y.reshape(1, -1)).sum() / y.shape[0]))

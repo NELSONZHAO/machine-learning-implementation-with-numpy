@@ -1,5 +1,7 @@
 # coding: utf-8
 import numpy as np
+import matplotlib.pyplot as plt
+import sklearn.datasets
 
 
 def load_planar():
@@ -19,4 +21,14 @@ def load_planar():
         X[ix] = np.c_[r * np.sin(t), r * np.cos(t)]
         y[ix] = j
 
+    return X, y
+
+
+def load_circles():
+    np.random.seed(1)
+    X, y = sklearn.datasets.make_circles(n_samples=500, noise=.05)
+
+    # Visualize the data
+    # plt.scatter(train_X[:, 0], train_X[:, 1], c=train_Y, s=40, cmap=plt.cm.Spectral);
+    # plt.show()
     return X, y
