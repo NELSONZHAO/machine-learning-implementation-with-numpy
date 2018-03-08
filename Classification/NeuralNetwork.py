@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 from collections import defaultdict
 from Preprocessing.WeightsInitialization import *
 
@@ -9,13 +10,16 @@ from DataSets.LoadData import *
 
 class NeuralNetwork(object):
     def __init__(self, layer_dims=(5, 1), learning_rate=0.005, max_iter=500, activate_fn='relu', init_weights_coef=0.01,
-                 random_state=None, verbose=True):
+                 regularization="l2", lambd=0.5, keep_prob=0.9, random_state=None, verbose=True):
         """
         Initialize the model params
         :param layer_dims: The number of nodes in each layer
         :param learning_rate: The learning rate in the gradient descent
         :param max_iter: The maximum epochs of training model
         :param activate_fn: The activation function in the hidden layer
+        :param regularization: The method of regularization
+        :param lambd: The coefficient of regularization
+        :param keep_prob: The coefficient of dropout regularization
         :param init_weights_coef: The scaling size of initializing weights
         :param random_state: Random state
         """
@@ -36,6 +40,9 @@ class NeuralNetwork(object):
             "lrelu": self.__derivative_leaky_relu
         }
         self.init_weights_coef = init_weights_coef
+        self.regularization = regularization
+        self.lambd = lambd
+        self.keep_prob = keep_prob
         self.random_state = random_state
         self.verbose = verbose
         self.weights = defaultdict()
@@ -87,21 +94,29 @@ class NeuralNetwork(object):
             assert (self.weights["W" + str(l)].shape == (self.layer_dims[l], self.layer_dims[l-1]))
             assert (self.weights["b" + str(l)].shape == (self.layer_dims[l], 1))
 
-    def __forward(self, A, W, b, activation_fn):
+    def __forward(self, A, W, b, activation_fn, output_layer=False):
         """
         Implement the part of a layer's forward propagation
         :param A: activations from previous layer(or the input data)
         :param W: weights matrix (l x l-1)
         :param b: bias vetor (l, 1)
+        :param activation_fn: The Activation function of each layer
+        :param output_layer: If the current layer is the output layer
         :return: 
         """
         Z = np.dot(W, A) + b
         A_new = activation_fn(Z)
+        D = np.ones_like(A_new)  # Mask
+
+        # Implement the Inverted Dropout Regularization
+        if self.regularization == "dropout" and not output_layer:
+            D = np.random.rand(A_new.shape[0], A_new.shape[1]) < self.keep_prob
+            A_new = np.multiply(A_new, D) / self.keep_prob
 
         assert (Z.shape == (W.shape[0], A.shape[1]))
         assert (A_new.shape == (W.shape[0], A.shape[1]))
 
-        cache = (A, W, b, Z)
+        cache = (A, W, b, Z, D)
 
         return A_new, cache
 
@@ -112,14 +127,18 @@ class NeuralNetwork(object):
         :param cache: A_prev, W, b, Z
         :return: 
         """
-        A_prev, W, b, Z = cache
+        A_prev, W, b, Z, D = cache
 
         m = A_prev.shape[1]
+
+        # Mask
+        dA = np.multiply(dA, D) / self.keep_prob
 
         dZ = dA * derivative_activate_fn(Z)
         dW = (1.0 / m) * np.dot(dZ, A_prev.T)
         db = (1.0 / m) * np.sum(dZ, axis=1, keepdims=True)
         dA_prev = np.dot(W.T, dZ)
+
 
         assert (dW.shape == W.shape)
         assert (db.shape == b.shape)
@@ -140,6 +159,12 @@ class NeuralNetwork(object):
         cost = (-1.0 / m) * np.sum(np.multiply(y, np.log(a)) + np.multiply(1-y, np.log(1-a)))
         cost = np.squeeze(cost)
 
+        # If need regularization
+        if self.regularization == "l2":
+            L = len(self.weights) // 2
+            for l in range(1, L+1):
+                cost += self.lambd/(2*m) * np.sum(np.square(self.weights["W" + str(l)]))
+
         return cost
 
     def __propagate(self, X, y):
@@ -156,7 +181,7 @@ class NeuralNetwork(object):
             caches.append(cache)
 
         # final output
-        AL, cache = self.__forward(A, self.weights["W" + str(L)], self.weights["b" + str(L)], self.__sigmoid)
+        AL, cache = self.__forward(A, self.weights["W" + str(L)], self.weights["b" + str(L)], self.__sigmoid, output_layer=True)
         caches.append(cache)
 
         # Cost
@@ -180,11 +205,15 @@ class NeuralNetwork(object):
             grads["db" + str(l + 1)] = db_tmp
 
         # Update the parameters
+        decay_coef = 1  # if not using regularization method, there is no decay when back-propagation
+        if self.regularization == "l2":
+            decay_coef = 1 - self.learning_rate * self.lambd / mx
+
         for l in range(1, L + 1):
             assert (self.weights["W" + str(l)].shape == grads["dW" + str(l)].shape)
             assert (self.weights["b" + str(l)].shape == grads["db" + str(l)].shape)
 
-            self.weights["W" + str(l)] = self.weights["W" + str(l)] - self.learning_rate * grads["dW" + str(l)]
+            self.weights["W" + str(l)] = decay_coef * self.weights["W" + str(l)] - self.learning_rate * grads["dW" + str(l)]
             self.weights["b" + str(l)] = self.weights["b" + str(l)] - self.learning_rate * grads["db" + str(l)]
 
         return cost
@@ -203,7 +232,7 @@ class NeuralNetwork(object):
             self.costs.append(cost)
 
             # print the log
-            if self.verbose and i % 100 == 0:
+            if self.verbose and i % 1000 == 0:
                 print("Training times: {}, Training error: {}".format(i, cost))
 
     def __predict(self, X):
@@ -231,10 +260,15 @@ if __name__ == "__main__":
     # Load the data
     X, y = load_circles()
 
+    train_X, dev_X, train_y, dev_y = train_test_split(X, y, test_size=0.4)
+
 
     # Train
-    clf = NeuralNetwork(layer_dims=(4, 5, 1), activate_fn="relu", max_iter=20000, learning_rate=0.05, random_state=123)
-    clf.fit(X, y)
+    clf = NeuralNetwork(layer_dims=(8, 12, 1), activate_fn="relu", regularization="dropout", keep_prob=1, max_iter=20000, learning_rate=0.05, random_state=123)
+    clf.fit(train_X, train_y)
 
-    preds = clf.predict(X)
-    print("Accuracy: {}%".format(100.0 * (preds.reshape(1, -1) == y.reshape(1, -1)).sum() / y.shape[0]))
+    train_preds = clf.predict(train_X)
+    print("Train Accuracy: {}%".format(100.0 * (train_preds.reshape(1, -1) == train_y.reshape(1, -1)).sum() / train_y.shape[0]))
+
+    dev_preds = clf.predict(dev_X)
+    print("Dev Accuracy: {}%".format(100.0 * (dev_preds.reshape(1, -1) == dev_y.reshape(1, -1)).sum() / dev_y.shape[0]))
