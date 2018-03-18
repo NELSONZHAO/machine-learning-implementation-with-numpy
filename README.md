@@ -1,2 +1,3 @@
-# 简介
-本repo下的代码主要用来实现各类机器学习算法底层，通过对算法的实现来进一步熟悉机器学习算法的思想。
+# Introduction
+
+This repo mainly implements some of the machine learning and deep learning algorithms through Python's basic data structures and modules, mainly relying on numpy.
