@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import sklearn.datasets
 
 
-def load_planar():
+def load_planar(n_samples=1000):
     # Generate data
     np.random.seed(1)
-    m = 400  # number of examples
+    m = n_samples  # number of examples
     N = int(m / 2)  # number of points per class
     D = 2  # dimensionality
     X = np.zeros((m, D))  # data matrix where each row is a single example
@@ -24,9 +24,9 @@ def load_planar():
     return X, y
 
 
-def load_circles():
+def load_circles(n_samples=1000):
     np.random.seed(1)
-    X, y = sklearn.datasets.make_circles(n_samples=500, noise=.05)
+    X, y = sklearn.datasets.make_circles(n_samples=n_samples, noise=.05)
 
     # Visualize the data
     # plt.scatter(train_X[:, 0], train_X[:, 1], c=train_Y, s=40, cmap=plt.cm.Spectral);

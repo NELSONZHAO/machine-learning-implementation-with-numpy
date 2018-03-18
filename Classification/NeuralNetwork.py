@@ -4,13 +4,15 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
 from Preprocessing.WeightsInitialization import *
+from Preprocessing.SplitMinibatch import random_mini_batches
 
 from DataSets.LoadData import *
 
 
 class NeuralNetwork(object):
-    def __init__(self, layer_dims=(5, 1), learning_rate=0.005, max_iter=500, activate_fn='relu', init_weights_coef=0.01,
-                 regularization="l2", lambd=0.5, keep_prob=0.9, random_state=None, verbose=True):
+    def __init__(self, layer_dims=(5, 1), learning_rate=0.005, max_iter=500, activate_fn='relu', batch_size=64,
+                 init_weights_coef=0.01, regularization="l2", lambd=0.5, keep_prob=0.9, random_state=None,
+                 verbose=True, optimizer="gd"):
         """
         Initialize the model params
         :param layer_dims: The number of nodes in each layer
@@ -39,6 +41,7 @@ class NeuralNetwork(object):
             "relu": self.__derivative_relu,
             "lrelu": self.__derivative_leaky_relu
         }
+        self.batch_size = batch_size
         self.init_weights_coef = init_weights_coef
         self.regularization = regularization
         self.lambd = lambd
@@ -46,6 +49,7 @@ class NeuralNetwork(object):
         self.random_state = random_state
         self.verbose = verbose
         self.weights = defaultdict()
+        self.optimizer = optimizer
 
         self.costs = []  # 记录训练过程的损失
 
@@ -218,22 +222,215 @@ class NeuralNetwork(object):
 
         return cost
 
+    def __initialize_momentum(self):
+        self.V = {}
+        L = len(self.weights) // 2
+
+        for l in range(1, L + 1):
+            self.V["dW" + str(l)] = np.zeros_like(self.weights["W" + str(l)])
+            self.V["db" + str(l)] = np.zeros_like(self.weights["b" + str(l)])
+
+    def __momentum_optimizer(self, X, y, beta=0.9):
+        """
+        Optimizing the loss function using momentum
+        :param X: The features of datasets
+        :param y: The target of datasets
+        :return: 
+        """
+        mx = X.shape[0]
+
+        A = X.T
+        caches = []
+
+        # Forward Propagate
+        L = len(self.weights) // 2
+
+        for l in range(1, L):
+            A_prev = A
+            A, cache = self.__forward(A_prev, self.weights["W" + str(l)], self.weights["b" + str(l)], self.activate_fns[self.activate_fn])
+            caches.append(cache)
+
+        # Final layer
+        AL, cache = self.__forward(A, self.weights["W" + str(L)], self.weights["b" + str(L)], self.__sigmoid, output_layer=True)
+        caches.append(cache)
+
+        # Cost
+        y = y.reshape(1, -1)
+        cost = self.__compute_cost(AL, y)
+
+        # Backward Propagate
+        grads = defaultdict()
+        # current cache
+        dAL = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
+        current_cache = caches[L - 1]
+        grads["dA" + str(L)], grads["dW" + str(L)], grads["db" + str(L)] = self.__backward(dAL, current_cache,
+                                                                                           self.__derivative_sigmoid)
+
+        for l in reversed(range(L - 1)):
+            current_cache = caches[l]
+            dA_tmp, dW_tmp, db_tmp = self.__backward(grads["dA" + str(l + 2)], current_cache,
+                                                     self.derivative_activate_fns[self.activate_fn])
+            grads["dA" + str(l + 1)] = dA_tmp
+            grads["dW" + str(l + 1)] = dW_tmp
+            grads["db" + str(l + 1)] = db_tmp
+
+        # Backprop with momentum
+        for l in range(1, L + 1):
+            assert (self.V["dW" + str(l)].shape == grads["dW" + str(l)].shape)
+            assert (self.V["db" + str(l)].shape == grads["db" + str(l)].shape)
+            self.V["dW" + str(l)] = beta * self.V["dW" + str(l)] + (1 - beta) * grads["dW" + str(l)]
+            self.V["db" + str(l)] = beta * self.V["db" + str(l)] + (1 - beta) * grads["db" + str(l)]
+
+            # Update the params
+            self.weights["W" + str(l)] -= self.learning_rate * self.V["dW" + str(l)]
+            self.weights["b" + str(l)] -= self.learning_rate * self.V["db" + str(l)]
+
+        return cost
+
+    def __initialize_adam(self):
+        self.V = {}
+        self.S = {}
+        L = len(self.weights) // 2
+
+        for l in range(1, L + 1):
+            self.V["dW" + str(l)] = np.zeros_like(self.weights["W" + str(l)])
+            self.V["db" + str(l)] = np.zeros_like(self.weights["b" + str(l)])
+            self.S["dW" + str(l)] = np.zeros_like(self.weights["W" + str(l)])
+            self.S["db" + str(l)] = np.zeros_like(self.weights["b" + str(l)])
+
+    def __adam_optimizer(self, X, y, t, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        """
+        Optimizing the loss function using Adam Optimizer
+        :param X: The features of datasets
+        :param y: The target of datasets
+        :param t: The number of batch
+        :param beta1: The coefficient of V
+        :param beta2: The coefficient of S
+        :param epsilon: modified item
+        :return: 
+        """
+        mx = X.shape[0]
+
+        A = X.T
+        caches = []
+
+        # Forward Propagate
+        L = len(self.weights) // 2
+
+        for l in range(1, L):
+            A_prev = A
+            A, cache = self.__forward(A_prev, self.weights["W" + str(l)], self.weights["b" + str(l)],
+                                      self.activate_fns[self.activate_fn])
+            caches.append(cache)
+
+        # Final layer
+        AL, cache = self.__forward(A, self.weights["W" + str(L)], self.weights["b" + str(L)], self.__sigmoid,
+                                   output_layer=True)
+        caches.append(cache)
+
+        # Cost
+        y = y.reshape(1, -1)
+        cost = self.__compute_cost(AL, y)
+
+        # Backward Propagate
+        grads = defaultdict()
+        # current cache
+        dAL = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
+        current_cache = caches[L - 1]
+        grads["dA" + str(L)], grads["dW" + str(L)], grads["db" + str(L)] = self.__backward(dAL, current_cache,
+                                                                                           self.__derivative_sigmoid)
+
+        for l in reversed(range(L - 1)):
+            current_cache = caches[l]
+            dA_tmp, dW_tmp, db_tmp = self.__backward(grads["dA" + str(l + 2)], current_cache,
+                                                     self.derivative_activate_fns[self.activate_fn])
+            grads["dA" + str(l + 1)] = dA_tmp
+            grads["dW" + str(l + 1)] = dW_tmp
+            grads["db" + str(l + 1)] = db_tmp
+
+        # Backprop with momentum
+        V_corr = {}  # The modified V
+        S_corr = {}  # The modified S
+
+        for l in range(1, L + 1):
+            assert (self.V["dW" + str(l)].shape == grads["dW" + str(l)].shape)
+            assert (self.V["db" + str(l)].shape == grads["db" + str(l)].shape)
+            # Calculate the gradient
+            self.V["dW" + str(l)] = beta1 * self.V["dW" + str(l)] + (1 - beta1) * grads["dW" + str(l)]
+            self.V["db" + str(l)] = beta1 * self.V["db" + str(l)] + (1 - beta1) * grads["db" + str(l)]
+            V_corr["dW" + str(l)] = self.V["dW" + str(l)] / (1 - beta1**t)
+            V_corr["db" + str(l)] = self.V["db" + str(l)] / (1 - beta1**t)
+
+            self.S["dW" + str(l)] = beta2 * self.S["dW" + str(l)] + (1 - beta2) * (grads["dW" + str(l)])**2
+            self.S["db" + str(l)] = beta2 * self.S["db" + str(l)] + (1 - beta2) * (grads["db" + str(l)])**2
+            S_corr["dW" + str(l)] = self.S["dW" + str(l)] / (1 - beta2**t)
+            S_corr["db" + str(l)] = self.S["db" + str(l)] / (1 - beta2**t)
+
+            # Update the params
+            self.weights["W" + str(l)] -= self.learning_rate * V_corr["dW" + str(l)] / (np.sqrt(S_corr["dW" + str(l)]) + epsilon)
+            self.weights["b" + str(l)] -= self.learning_rate * V_corr["db" + str(l)] / (np.sqrt(S_corr["db" + str(l)]) + epsilon)
+
+        return cost
+
     def fit(self, X, y):
         assert (X.shape[0] == y.shape[0])
 
+        # SGD or Full batch or Mini-Batch
+        if self.batch_size < X.shape[0]:
+            mini_batches = random_mini_batches(X, y, self.batch_size)
+
+        # Initialize the params
         self.layer_dims = [X.shape[1]] + list(self.layer_dims)
         self.weights = initialize_params_he(self.layer_dims)
-        # self.__initialize_weights(X.shape[1])
 
-        # train the model
-        for i in range(self.max_iter):
-            cost = self.__propagate(X, y)
+        # The optimizer
+        if self.optimizer == "gd":
+            # train the model
+            t = 0
+            for i in range(self.max_iter):
+                for X_batch, y_batch in mini_batches:
+                    cost = self.__propagate(X_batch, y_batch)
 
-            self.costs.append(cost)
+                    self.costs.append(cost)
+                    t += 1
 
-            # print the log
-            if self.verbose and i % 1000 == 0:
-                print("Training times: {}, Training error: {}".format(i, cost))
+                # print the log
+                if self.verbose and i % 1000 == 0:
+                    print("Training times: {}, Training error: {}".format(i, cost))
+
+        elif self.optimizer == "momentum":
+            # Initialize the momentum
+            self.__initialize_momentum()
+
+            # train the model
+            t = 0
+            for i in range(self.max_iter):
+                for X_batch, y_batch in mini_batches:
+                    cost = self.__momentum_optimizer(X_batch, y_batch)
+
+                    self.costs.append(cost)
+                    t += 1
+
+                # print the log
+                if self.verbose and i % 1000 == 0:
+                    print("Training times: {}, Training error: {}".format(i, cost))
+
+        elif self.optimizer == "adam":
+            # Initialize the adam
+            self.__initialize_adam()
+
+            # train the model
+            t = 1
+            for i in range(self.max_iter):
+                for X_batch, y_batch in mini_batches:
+                    cost = self.__adam_optimizer(X_batch, y_batch, t)
+
+                    self.costs.append(cost)
+                    t += 1
+
+                # print the log
+                if self.verbose and i % 1000 == 0:
+                    print("Training times: {}, Training error: {}".format(i, cost))
 
     def __predict(self, X):
         mx = X.shape[0]
@@ -258,13 +455,13 @@ class NeuralNetwork(object):
 
 if __name__ == "__main__":
     # Load the data
-    X, y = load_circles()
+    X, y = load_circles(n_samples=1000)
 
     train_X, dev_X, train_y, dev_y = train_test_split(X, y, test_size=0.4)
 
-
     # Train
-    clf = NeuralNetwork(layer_dims=(8, 12, 1), activate_fn="relu", regularization="dropout", keep_prob=1, max_iter=20000, learning_rate=0.05, random_state=123)
+    clf = NeuralNetwork(layer_dims=(8, 12, 1), activate_fn="relu", max_iter=5000, learning_rate=0.0007, random_state=123,
+                        optimizer="gd", regularization=None, batch_size=32)
     clf.fit(train_X, train_y)
 
     train_preds = clf.predict(train_X)
