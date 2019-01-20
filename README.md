@@ -1,3 +1,10 @@
 # Introduction
+This repo contains implementation of some of the machine learning algorithms, without using packages.
 
-This repo mainly implements some of the machine learning and deep learning algorithms through Python's basic data structures and modules, mainly relying on numpy.
+# Purpose
+Just for fun!
+
+# Schedule
+- Perceptron (Completed)
+- Dual Perceptron (Completed)
+- KNN (On going)
