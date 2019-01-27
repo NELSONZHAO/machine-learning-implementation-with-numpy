@@ -9,12 +9,15 @@ Three important elements:
 
 
 class TreeNode(object):
+    """
+    KD树结点类
+    """
     def __init__(self):
-        self.location
-        self.cut_axis
-        self.depth
-        self.left_node
-        self.right_node
+        self.location = None  # split value
+        self.cut_axis = None  # split attribute
+        self.depth = None  # the depth of current node
+        self.left_node = None  # the left child of current node
+        self.right_node = None  # the right child of current node
 
 
 class KNN(object):
